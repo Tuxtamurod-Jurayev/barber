@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barber Admin Paneli — Boshqaruv Markazi</title>
+  
+  <!-- Lucide Icons Library -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+
+  <!-- 1. PIN-LOCK SCREEN -->
+  <div class="pin-lock-overlay" id="pinLockScreen">
+    <div class="pin-box">
+      <div class="pin-icon-wrap">
+        <i data-lucide="lock"></i>
+      </div>
+      <h2 class="pin-title">Admin Boshqaruvi</h2>
+      <p class="pin-subtitle">Xavfsizlik PIN kodini kiriting (Standart: 7777)</p>
+      
+      <form id="pinForm">
+        <div class="pin-input-wrap">
+          <input type="password" id="pinInput" class="pin-input" maxlength="8" placeholder="••••" autocomplete="off" autofocus required>
+        </div>
+        <button type="submit" class="btn-pin-submit">
+          <span>Kirish</span>
+          <i data-lucide="arrow-right"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. ADMIN MAIN LAYOUT -->
+  <div class="admin-layout" id="adminApp" style="display: none;">
+    
+    <!-- SIDEBAR -->
+    <aside class="admin-sidebar">
+      <div class="admin-brand">
+        <div class="admin-logo-icon">
+          <i data-lucide="scissors"></i>
+        </div>
+        <div class="admin-brand-text">
+          <h2 id="sidebarBarberName">Usta Sardor</h2>
+          <div class="brand-badge">
+            <span class="dot"></span>
+            <span>Online • 1 Usta</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-item active" data-tab="today">
+          <i data-lucide="calendar"></i>
+          <span>Bugungi Jadval</span>
+        </div>
+        <div class="nav-item" data-tab="allBookings">
+          <i data-lucide="clipboard-list"></i>
+          <span>Barcha Bronlar</span>
+        </div>
+        <div class="nav-item" data-tab="schedule">
+          <i data-lucide="clock"></i>
+          <span>Ish Jadvali</span>
+        </div>
+        <div class="nav-item" data-tab="offDays">
+          <i data-lucide="palmtree"></i>
+          <span>Dam Olish Kunlari</span>
+        </div>
+        <div class="nav-item" data-tab="services">
+          <i data-lucide="sparkles"></i>
+          <span>Xizmatlar</span>
+        </div>
+        <div class="nav-item" data-tab="notifications">
+          <i data-lucide="bell"></i>
+          <span>Telegram Xabarlar</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="/" target="_blank" class="btn-sidebar-action">
+          <i data-lucide="external-link"></i>
+          <span>Mijoz Sahifasi</span>
+        </a>
+        <button type="button" class="btn-sidebar-action" id="btnLogout">
+          <i data-lucide="log-out"></i>
+          <span>Chiqish</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN AREA -->
+    <main class="admin-main">
+      
+      <!-- TOPBAR -->
+      <header class="admin-topbar">
+        <div class="topbar-title">
+          <h1 id="pageTitle">Bugungi Navbatlar</h1>
+          <div class="date-pill">
+            <i data-lucide="clock"></i>
+            <span id="currentDateDisplay">2026-10-02</span>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" class="btn-primary" id="btnOpenManualModal">
+            <i data-lucide="user-plus"></i>
+            <span>Qo‘lda Mijoz Qo‘shish</span>
+          </button>
+          <button type="button" class="btn-secondary" id="btnOpenBlockModal">
+            <i data-lucide="ban"></i>
+            <span>Vaqtni Yopish</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- PAGE CONTENT -->
+      <div class="admin-page-content">
+
+        <!-- STATS OVERVIEW -->
+        <div class="stats-grid">
+          <div class="stat-card total">
+            <div class="stat-info">
+              <div class="label">Bugungi Mijozlar</div>
+              <div class="value" id="statTodayTotal">0</div>
+            </div>
+            <div class="stat-icon">
+              <i data-lucide="users"></i>
+            </div>
+          </div>
+          <div class="stat-card confirmed">
+            <div class="stat-info">
+              <div class="label">Tasdiqlangan</div>
+              <div class="value" id="statTodayConfirmed">0</div>
+            </div>
+            <div class="stat-icon">
+              <i data-lucide="check-circle-2"></i>
+            </div>
+          </div>
+          <div class="stat-card completed">
+            <div class="stat-info">
+              <div class="label">Yakunlangan</div>
+              <div class="value" id="statTodayCompleted">0</div>
+            </div>
+            <div class="stat-icon">
+              <i data-lucide="flag"></i>
+            </div>
+          </div>
+          <div class="stat-card revenue">
+            <div class="stat-info">
+              <div class="label">Kutilayotgan Tushum</div>
+              <div class="value gold" id="statTodayRevenue">0 so‘m</div>
+            </div>
+            <div class="stat-icon">
+              <i data-lucide="wallet"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 1: BUGUNGI JADVAL -->
+        <div class="tab-pane active" id="tabToday">
+          <div class="card-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-lucide="calendar-check"></i>
+                <span>Bugun navbatda turgan mijozlar (Jonli oqim)</span>
+              </div>
+              <button type="button" class="btn-secondary" id="btnRefreshToday">
+                <i data-lucide="refresh-cw"></i>
+                <span>Yangilash</span>
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="bookings-table">
+                <thead>
+                  <tr>
+                    <th>Vaqt</th>
+                    <th>Mijoz</th>
+                    <th>Telefon</th>
+                    <th>Xizmat</th>
+                    <th>Narx</th>
+                    <th>Holat</th>
+                    <th>Tezkor Amallar</th>
+                  </tr>
+                </thead>
+                <tbody id="todayBookingsList">
+                  <!-- JS orqali to'ldiriladi -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: BARCHA BRONLAR -->
+        <div class="tab-pane" id="tabAllBookings" style="display: none;">
+          <div class="card-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-lucide="clipboard-list"></i>
+                <span>Barcha bronlar jurnali</span>
+              </div>
+              <div class="panel-filters">
+                <div class="search-input-wrap">
+                  <i data-lucide="search"></i>
+                  <input type="text" id="searchClientInput" class="filter-input with-icon" placeholder="Ism yoki telefon qidirish...">
+                </div>
+                <input type="date" id="filterDate" class="filter-input">
+                <select id="filterStatus" class="filter-input">
+                  <option value="">Barcha holatlar</option>
+                  <option value="confirmed">Tasdiqlangan</option>
+                  <option value="completed">Yakunlangan</option>
+                  <option value="cancelled">Bekor qilingan</option>
+                </select>
+                <button type="button" class="btn-secondary" id="btnFilterBookings">
+                  <i data-lucide="filter"></i>
+                  <span>Filtr</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="bookings-table">
+                <thead>
+                  <tr>
+                    <th>Sana</th>
+                    <th>Vaqt</th>
+                    <th>Mijoz</th>
+                    <th>Telefon</th>
+                    <th>Xizmat</th>
+                    <th>Holat</th>
+                    <th>Amallar</th>
+                  </tr>
+                </thead>
+                <tbody id="allBookingsList">
+                  <!-- JS orqali to'ldiriladi -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: ISH JADVALI -->
+        <div class="tab-pane" id="tabSchedule" style="display: none;">
+          <div class="card-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-lucide="clock"></i>
+                <span>Haftalik ish vaqtlari va tanaffuslar (Breaks)</span>
+              </div>
+            </div>
+            
+            <div class="table-responsive">
+              <table class="bookings-table">
+                <thead>
+                  <tr>
+                    <th>Hafta kuni</th>
+                    <th>Holati</th>
+                    <th>Ish boshlanishi</th>
+                    <th>Ish tugashi</th>
+                    <th>Tanaffus (Break)</th>
+                    <th>Amal</th>
+                  </tr>
+                </thead>
+                <tbody id="workScheduleList">
+                  <!-- JS orqali to'ldiriladi -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: DAM OLISH KUNLARI -->
+        <div class="tab-pane" id="tabOffDays" style="display: none;">
+          <div class="card-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-lucide="palmtree"></i>
+                <span>Maxsus dam olish kunlari (Off-days)</span>
+              </div>
+              <button type="button" class="btn-primary" id="btnOpenAddOffDayModal">
+                <i data-lucide="plus"></i>
+                <span>Dam olish kuni qo‘shish</span>
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="bookings-table">
+                <thead>
+                  <tr>
+                    <th>Sana</th>
+                    <th>Sabab / Izoh</th>
+                    <th>Amal</th>
+                  </tr>
+                </thead>
+                <tbody id="offDaysList">
+                  <!-- JS orqali to'ldiriladi -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: XIZMATLAR -->
+        <div class="tab-pane" id="tabServices" style="display: none;">
+          <div class="card-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-lucide="sparkles"></i>
+                <span>Sartaroshxona Xizmatlari va Narxlari</span>
+              </div>
+              <button type="button" class="btn-primary" id="btnOpenAddServiceModal">
+                <i data-lucide="plus"></i>
+                <span>Yangi xizmat qo‘shish</span>
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="bookings-table">
+                <thead>
+                  <tr>
+                    <th>Xizmat nomi</th>
+                    <th>Narxi (so‘m)</th>
+                    <th>Davomiyligi</th>
+                    <th>Tavsif</th>
+                    <th>Holati</th>
+                    <th>Amallar</th>
+                  </tr>
+                </thead>
+                <tbody id="servicesList">
+                  <!-- JS orqali to'ldiriladi -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 6: TELEGRAM XABARLAR -->
+        <div class="tab-pane" id="tabNotifications" style="display: none;">
+          <div class="card-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-lucide="bell"></i>
+                <span>Telegramga yetkazilgan xabarnomalar oqimi</span>
+              </div>
+              <button type="button" class="btn-secondary" id="btnRefreshNotifs">
+                <i data-lucide="refresh-cw"></i>
+                <span>Yangilash</span>
+              </button>
+            </div>
+
+            <div id="notificationsList">
+              <!-- JS orqali to'ldiriladi -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- ===============================================================
+       MODALLAR
+  =============================================================== -->
+
+  <!-- Modal 1: Qo'lda mijoz qo'shish (Walk-in / Telefon) -->
+  <div class="admin-modal-overlay" id="manualBookingModal">
+    <div class="admin-modal-box">
+      <div class="admin-modal-header">
+        <h3>
+          <i data-lucide="user-plus" style="color: var(--gold);"></i>
+          <span>Qo‘lda Mijoz Qo‘shish</span>
+        </h3>
+        <button type="button" class="btn-close-x close-modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="manualBookingForm" class="modal-form">
+        <div class="form-group">
+          <label>Mijoz ismi</label>
+          <input type="text" id="manualClientName" class="form-input" placeholder="Masalan: Sardor" required>
+        </div>
+        <div class="form-group">
+          <label>Telefon raqam</label>
+          <input type="text" id="manualClientPhone" class="form-input" placeholder="+998 90 123 45 67">
+        </div>
+        <div class="form-group">
+          <label>Xizmat turi</label>
+          <select id="manualServiceSelect" class="form-select" required></select>
+        </div>
+        <div class="form-group">
+          <label>Sana</label>
+          <input type="date" id="manualDate" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label>Boshlanish vaqti (HH:MM)</label>
+          <input type="time" id="manualStartTime" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label>Qo‘shimcha izoh</label>
+          <input type="text" id="manualNotes" class="form-input" placeholder="Telefon orqali yozildi">
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 8px; justify-content: center;">
+          <i data-lucide="check"></i>
+          <span>Saqlash va Band Qilish</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Vaqtni Yopish / Tanaffus -->
+  <div class="admin-modal-overlay" id="blockTimeModal">
+    <div class="admin-modal-box">
+      <div class="admin-modal-header">
+        <h3>
+          <i data-lucide="ban" style="color: var(--danger);"></i>
+          <span>Vaqt Oralig‘ini Yopish</span>
+        </h3>
+        <button type="button" class="btn-close-x close-modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="blockTimeForm" class="modal-form">
+        <div class="form-group">
+          <label>Sana</label>
+          <input type="date" id="blockDate" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label>Boshlanish vaqti</label>
+          <input type="time" id="blockStartTime" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label>Tugash vaqti</label>
+          <input type="time" id="blockEndTime" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label>Sabab</label>
+          <input type="text" id="blockReason" class="form-input" placeholder="Shaxsiy ish / Tushlik" required>
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 8px; justify-content: center;">
+          <i data-lucide="lock"></i>
+          <span>Vaqtni Qulflash</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Dam Olish Kuni Qo'shish -->
+  <div class="admin-modal-overlay" id="offDayModal">
+    <div class="admin-modal-box">
+      <div class="admin-modal-header">
+        <h3>
+          <i data-lucide="palmtree" style="color: var(--warning);"></i>
+          <span>Dam Olish Kuni Belgilash</span>
+        </h3>
+        <button type="button" class="btn-close-x close-modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="offDayForm" class="modal-form">
+        <div class="form-group">
+          <label>Dam olish sanasi</label>
+          <input type="date" id="offDayDate" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label>Sabab (mijozlarga ko‘rsatiladi)</label>
+          <input type="text" id="offDayReason" class="form-input" placeholder="Ta’til / Bayram / Santexnika ta’miri" required>
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 8px; justify-content: center;">
+          <i data-lucide="check"></i>
+          <span>Dam Olish Kunini Saqlash</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 4: Yangi Xizmat Qo'shish / Tahrirlash -->
+  <div class="admin-modal-overlay" id="serviceModal">
+    <div class="admin-modal-box">
+      <div class="admin-modal-header">
+        <h3>
+          <i data-lucide="sparkles" style="color: var(--gold);"></i>
+          <span id="serviceModalTitle">Yangi Xizmat Qo‘shish</span>
+        </h3>
+        <button type="button" class="btn-close-x close-modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="serviceForm" class="modal-form">
+        <input type="hidden" id="serviceId">
+        <div class="form-group">
+          <label>Xizmat nomi</label>
+          <input type="text" id="serviceTitle" class="form-input" placeholder="Masalan: Soch olish (Klassik)" required>
+        </div>
+        <div class="form-group">
+          <label>Narxi (so‘m)</label>
+          <input type="number" id="servicePrice" class="form-input" placeholder="60000" step="5000" required>
+        </div>
+        <div class="form-group">
+          <label>Davomiyligi (daqiqa)</label>
+          <select id="serviceDuration" class="form-select" required>
+            <option value="15">15 daqiqa</option>
+            <option value="30" selected>30 daqiqa</option>
+            <option value="45">45 daqiqa</option>
+            <option value="60">60 daqiqa (1 soat)</option>
+            <option value="90">90 daqiqa (1.5 soat)</option>
+            <option value="120">120 daqiqa (2 soat)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tavsif</label>
+          <input type="text" id="serviceDesc" class="form-input" placeholder="Qisqacha ma’lumot">
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 8px; justify-content: center;">
+          <i data-lucide="check"></i>
+          <span>Saqlash</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- FLOATING TOAST -->
+  <div class="admin-toast" id="adminToast">
+    <i data-lucide="check-circle-2"></i>
+    <span id="adminToastMsg">Muvaffaqiyatli bajarildi</span>
+  </div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

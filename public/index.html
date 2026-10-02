@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sartaroshxona — Navbatga Yozilish (Online Bron)</title>
+  
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Google Fonts & Styles -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="barber-profile">
+        <div class="barber-avatar-wrap">
+          <div class="barber-avatar">
+            <i data-lucide="scissors"></i>
+          </div>
+          <span class="verified-badge">
+            <i data-lucide="check"></i>
+          </span>
+        </div>
+        <div class="barber-info">
+          <h1 id="headerBarberName">Usta Sardor</h1>
+          <div class="barber-role">
+            <span class="status-dot"></span>
+            <span>Bugun ochiq • 09:00 - 20:00</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-links">
+        <a href="/admin" id="adminLink">
+          <i data-lucide="lock"></i>
+          <span>Admin</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- CONTENT BODY -->
+    <main class="content-body">
+
+      <!-- 1. XIZMATNI TANLASH -->
+      <section class="booking-section">
+        <div class="section-title">
+          <div class="section-title-left">
+            <i data-lucide="sparkles"></i>
+            <span>1. Xizmat turini tanlang</span>
+          </div>
+          <span class="step-tag">1-qadam</span>
+        </div>
+        <div class="services-list" id="servicesContainer">
+          <div class="slots-loading">
+            <div class="spinner"></div>
+            <span>Xizmatlar yuklanmoqda...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. SANANI TANLASH -->
+      <section class="booking-section">
+        <div class="section-title">
+          <div class="section-title-left">
+            <i data-lucide="calendar"></i>
+            <span>2. Kerakli kunni tanlang</span>
+          </div>
+          <span class="step-tag">2-qadam</span>
+        </div>
+        <div class="dates-slider" id="datesContainer">
+          <!-- 14 kunlik sanalar shu yerga generatsiya qilinadi -->
+        </div>
+      </section>
+
+      <!-- 3. BO'SH SLOTLARNI TANLASH -->
+      <section class="booking-section">
+        <div class="section-title">
+          <div class="section-title-left">
+            <i data-lucide="clock"></i>
+            <span>3. Bo‘sh vaqt (Slot) ni tanlang</span>
+          </div>
+          <span class="step-tag">3-qadam</span>
+        </div>
+        
+        <div class="slots-container" id="slotsContainer">
+          <div class="slots-loading">
+            <span>Iltimos, avval xizmat va sanani tanlang</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. MIJOZ MA'LUMOTLARI -->
+      <section class="booking-section">
+        <div class="section-title">
+          <div class="section-title-left">
+            <i data-lucide="user"></i>
+            <span>4. Ma’lumotlaringiz</span>
+          </div>
+          <span class="step-tag">4-qadam</span>
+        </div>
+
+        <div class="form-card">
+          <div class="input-group">
+            <label class="input-label" for="clientName">
+              <i data-lucide="user"></i>
+              <span>Ismingiz</span>
+              <span id="tmaUserBadge" class="tma-user-tag" style="display: none;">• Telegram orqali</span>
+            </label>
+            <div class="form-control-wrap">
+              <i data-lucide="user"></i>
+              <input type="text" id="clientName" class="form-control" placeholder="Masalan: Sardor" autocomplete="name" required>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label" for="clientPhone">
+              <i data-lucide="phone"></i>
+              <span>Telefon raqamingiz</span>
+            </label>
+            <div class="form-control-wrap">
+              <i data-lucide="phone"></i>
+              <input type="tel" id="clientPhone" class="form-control" placeholder="+998 90 123 45 67" required>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label" for="clientNotes">
+              <i data-lucide="file-text"></i>
+              <span>Qo‘shimcha istaklar (ixtiyoriy)</span>
+            </label>
+            <div class="form-control-wrap">
+              <i data-lucide="file-text"></i>
+              <input type="text" id="clientNotes" class="form-control" placeholder="Masalan: Soch feyd uslubida bo‘lsin">
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- STICKY BOTTOM SUMMARY BAR -->
+    <div class="bottom-bar">
+      <div class="summary-info">
+        <div class="summary-selection" id="summaryDetails">Xizmat va vaqt tanlang</div>
+        <div class="summary-price" id="summaryPrice">0 so‘m</div>
+      </div>
+      <button type="button" id="btnBookNow" class="btn-book-now" disabled>
+        <span>Band qilish</span>
+        <i data-lucide="scissors"></i>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- SUCCESS TICKET MODAL -->
+  <div class="modal-overlay" id="ticketModal">
+    <div class="ticket-modal">
+      <div class="success-icon-wrap">
+        <i data-lucide="check"></i>
+      </div>
+      <h2 class="modal-title">Navbat Band Qilindi!</h2>
+      <p class="modal-subtitle">Sartaroshxonamizda sizni kutamiz</p>
+
+      <div class="ticket-details">
+        <div class="ticket-row">
+          <span class="label">Mijoz:</span>
+          <span class="value" id="ticketClientName">-</span>
+        </div>
+        <div class="ticket-row">
+          <span class="label">Telefon:</span>
+          <span class="value" id="ticketClientPhone">-</span>
+        </div>
+        <div class="ticket-row">
+          <span class="label">Xizmat:</span>
+          <span class="value" id="ticketServiceTitle">-</span>
+        </div>
+        <div class="ticket-row">
+          <span class="label">Sana:</span>
+          <span class="value" id="ticketDate">-</span>
+        </div>
+        <div class="ticket-row">
+          <span class="label">Vaqt:</span>
+          <span class="value" id="ticketTime">-</span>
+        </div>
+        <div class="ticket-row">
+          <span class="label">To‘lov summasi:</span>
+          <span class="value gold" id="ticketPrice">0 so‘m</span>
+        </div>
+      </div>
+
+      <div class="telegram-sent-alert">
+        <i data-lucide="send"></i>
+        <span>Ustaning shaxsiy Telegramiga yangi bron haqida to‘liq ma’lumot yetkazildi!</span>
+      </div>
+
+      <button type="button" class="btn-close-modal" id="btnCloseModal">
+        <i data-lucide="plus-circle"></i>
+        <span>Yangi navbat yozish</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Client Script -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
