@@ -1,23 +1,70 @@
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// Baza fayli saqlanadigan papka
-const dataDir = path.join(__dirname, '..', '..', 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+// Serverless / Vercel muhitini aniqlash
+const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+
+let db = null;
+let useMemoryStore = false;
+
+// Standart birlamchi ma'lumotlar (Seed)
+const DEFAULT_SERVICES = [
+  { id: '11111111-1111-4111-8111-111111111111', title: 'Soch olish (Klassik / Fade)', price: 60000, duration_minutes: 30, description: 'Professional soch turmagi, qirqish va styling', is_active: 1 },
+  { id: '22222222-2222-4222-8222-222222222222', title: 'Soqol tekislash va qirqish', price: 40000, duration_minutes: 30, description: 'Issiq sochiq, lezviya va maxsus parvarish moyi', is_active: 1 },
+  { id: '33333333-3333-4333-8333-333333333333', title: 'Combo: Soch + Soqol', price: 90000, duration_minutes: 60, description: 'To‘liq parvarish, soch va soqol shakllantirish, yuvish', is_active: 1 },
+  { id: '44444444-4444-4444-8444-444444444444', title: 'Bolalar sochi (10 yoshgacha)', price: 45000, duration_minutes: 30, description: 'Kichkintoylar uchun sabrli va ehtiyotkorona xizmat', is_active: 1 },
+  { id: '55555555-5555-4555-8555-555555555555', title: 'VIP Royal Xizmat', price: 150000, duration_minutes: 60, description: 'Soch, soqol, yuz qora niqobi, bosh massaji va premium styling', is_active: 1 },
+];
+
+const DEFAULT_SCHEDULE = [
+  { id: 's1', day_of_week: 1, is_working_day: 1, work_start: '09:00', work_end: '20:00', break_start: '13:00', break_end: '14:00' },
+  { id: 's2', day_of_week: 2, is_working_day: 1, work_start: '09:00', work_end: '20:00', break_start: '13:00', break_end: '14:00' },
+  { id: 's3', day_of_week: 3, is_working_day: 1, work_start: '09:00', work_end: '20:00', break_start: '13:00', break_end: '14:00' },
+  { id: 's4', day_of_week: 4, is_working_day: 1, work_start: '09:00', work_end: '20:00', break_start: '13:00', break_end: '14:00' },
+  { id: 's5', day_of_week: 5, is_working_day: 1, work_start: '09:00', work_end: '20:00', break_start: '12:30', break_end: '14:00' },
+  { id: 's6', day_of_week: 6, is_working_day: 1, work_start: '09:00', work_end: '21:00', break_start: '13:00', break_end: '14:00' },
+  { id: 's7', day_of_week: 7, is_working_day: 0, work_start: '10:00', work_end: '18:00', break_start: '13:00', break_end: '14:00' },
+];
+
+// Fallback Memory Store (Agar Vercelda better-sqlite3 native ikkilik fayli ishlamasa)
+const memStore = {
+  services: JSON.parse(JSON.stringify(DEFAULT_SERVICES)),
+  schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)),
+  offDays: [],
+  bookings: []
+};
+
+try {
+  const Database = require('better-sqlite3');
+  const dataDir = isServerless ? '/tmp' : path.join(__dirname, '..', '..', 'data');
+  
+  if (!fs.existsSync(dataDir)) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true });
+    } catch (e) {
+      console.warn('[DB] mkdir ogohlantirish:', e.message);
+    }
+  }
+
+  const dbPath = path.join(dataDir, 'barber.db');
+  db = new Database(dbPath);
+
+  // WAL rejimini faqat serverless bo'lmaganda yoqamiz (/tmp da WAL fayllar qulf bo'lib qolmasligi uchun)
+  if (!isServerless) {
+    db.pragma('journal_mode = WAL');
+  }
+  db.pragma('foreign_keys = ON');
+
+  initSqliteTables();
+} catch (err) {
+  console.warn('[DB] better-sqlite3 yuklanmadi, xavfsiz xotira (In-Memory) rejimiga o‘tildi:', err.message);
+  useMemoryStore = true;
 }
 
-const dbPath = path.join(dataDir, 'barber.db');
-const db = new Database(dbPath);
+function initSqliteTables() {
+  if (!db) return;
 
-// WAL (Write-Ahead Logging) rejimini yoqish - yuqori tezlik va xavfsiz parallel o'qish uchun
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-function initDb() {
-  // 1. Services
   db.exec(`
     CREATE TABLE IF NOT EXISTS services (
       id TEXT PRIMARY KEY,
@@ -63,64 +110,46 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_bookings_date_status ON bookings (booking_date, status);
   `);
 
-  // Boshlang'ich xizmatlarni kiritish (agar bo'sh bo'lsa)
+  // Boshlang'ich xizmatlar
   const serviceCount = db.prepare('SELECT COUNT(*) as count FROM services').get().count;
   if (serviceCount === 0) {
     const insertService = db.prepare(`
       INSERT INTO services (id, title, price, duration_minutes, description, is_active)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-
-    const defaultServices = [
-      { id: crypto.randomUUID(), title: 'Soch olish (Klassik / Fade)', price: 60000, duration: 30, desc: 'Professional soch turmagi, qirqish va styling' },
-      { id: crypto.randomUUID(), title: 'Soqol tekislash va qirqish', price: 40000, duration: 30, desc: 'Issiq sochiq, lezviya va maxsus parvarish moyi' },
-      { id: crypto.randomUUID(), title: 'Combo: Soch + Soqol', price: 90000, duration: 60, desc: 'To‘liq parvarish, soch va soqol shakllantirish, yuvish' },
-      { id: crypto.randomUUID(), title: 'Bolalar sochi (10 yoshgacha)', price: 45000, duration: 30, desc: 'Kichkintoylar uchun sabrli va ehtiyotkorona xizmat' },
-      { id: crypto.randomUUID(), title: 'VIP Royal Xizmat', price: 150000, duration: 60, desc: 'Soch, soqol, yuz qora niqobi, bosh massaji va premium styling' },
-    ];
-
     const insertTx = db.transaction((services) => {
       for (const s of services) {
-        insertService.run(s.id, s.title, s.price, s.duration, s.desc, 1);
+        insertService.run(s.id, s.title, s.price, s.duration_minutes, s.description, 1);
       }
     });
-    insertTx(defaultServices);
+    insertTx(DEFAULT_SERVICES);
   }
 
-  // Boshlang'ich ish jadvalini kiritish (1 = Dushanba, ..., 7 = Yakshanba)
+  // Boshlang'ich ish jadvali
   const scheduleCount = db.prepare('SELECT COUNT(*) as count FROM work_schedule').get().count;
   if (scheduleCount === 0) {
     const insertSchedule = db.prepare(`
       INSERT INTO work_schedule (id, day_of_week, is_working_day, work_start, work_end, break_start, break_end)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-
-    const defaultSchedule = [
-      { day: 1, isWork: 1, start: '09:00', end: '20:00', bStart: '13:00', bEnd: '14:00' }, // Du
-      { day: 2, isWork: 1, start: '09:00', end: '20:00', bStart: '13:00', bEnd: '14:00' }, // Se
-      { day: 3, isWork: 1, start: '09:00', end: '20:00', bStart: '13:00', bEnd: '14:00' }, // Chor
-      { day: 4, isWork: 1, start: '09:00', end: '20:00', bStart: '13:00', bEnd: '14:00' }, // Pay
-      { day: 5, isWork: 1, start: '09:00', end: '20:00', bStart: '12:30', bEnd: '14:00' }, // Juma (Namozi tanaffus)
-      { day: 6, isWork: 1, start: '09:00', end: '21:00', bStart: '13:00', bEnd: '14:00' }, // Shanba
-      { day: 7, isWork: 0, start: '10:00', end: '18:00', bStart: '13:00', bEnd: '14:00' }, // Yakshanba (Dam)
-    ];
-
     const scheduleTx = db.transaction((rows) => {
       for (const r of rows) {
-        insertSchedule.run(crypto.randomUUID(), r.day, r.isWork, r.start, r.end, r.bStart, r.bEnd);
+        insertSchedule.run(crypto.randomUUID(), r.day_of_week, r.is_working_day, r.work_start, r.work_end, r.break_start, r.break_end);
       }
     });
-    scheduleTx(defaultSchedule);
+    scheduleTx(DEFAULT_SCHEDULE);
   }
 }
 
-// Baza jadvallarini ishga tushirish
-initDb();
-
 // ===============================================================
-// Xizmatlar (Services) Metodlari
+// XIZMATLAR (SERVICES)
 // ===============================================================
 function getServices({ onlyActive = true } = {}) {
+  if (useMemoryStore) {
+    return memStore.services
+      .filter(s => onlyActive ? s.is_active === 1 : true)
+      .sort((a, b) => a.price - b.price);
+  }
   const query = onlyActive 
     ? 'SELECT * FROM services WHERE is_active = 1 ORDER BY price ASC'
     : 'SELECT * FROM services ORDER BY created_at ASC';
@@ -128,11 +157,19 @@ function getServices({ onlyActive = true } = {}) {
 }
 
 function getServiceById(id) {
-  return db.prepare('SELECT * FROM services WHERE id = ?').get(id);
+  if (useMemoryStore) {
+    return memStore.services.find(s => s.id === id) || null;
+  }
+  return db.prepare('SELECT * FROM services WHERE id = ?').get(id) || null;
 }
 
 function createService({ title, price, duration_minutes, description = '' }) {
   const id = crypto.randomUUID();
+  if (useMemoryStore) {
+    const item = { id, title, price: Number(price), duration_minutes: Number(duration_minutes), description, is_active: 1, created_at: new Date().toISOString() };
+    memStore.services.push(item);
+    return item;
+  }
   db.prepare(`
     INSERT INTO services (id, title, price, duration_minutes, description, is_active)
     VALUES (?, ?, ?, ?, ?, 1)
@@ -141,6 +178,16 @@ function createService({ title, price, duration_minutes, description = '' }) {
 }
 
 function updateService(id, { title, price, duration_minutes, description, is_active }) {
+  if (useMemoryStore) {
+    const s = memStore.services.find(x => x.id === id);
+    if (!s) return null;
+    if (title !== undefined) s.title = title;
+    if (price !== undefined) s.price = Number(price);
+    if (duration_minutes !== undefined) s.duration_minutes = Number(duration_minutes);
+    if (description !== undefined) s.description = description;
+    if (is_active !== undefined) s.is_active = is_active ? 1 : 0;
+    return s;
+  }
   db.prepare(`
     UPDATE services
     SET title = COALESCE(?, title),
@@ -161,33 +208,53 @@ function updateService(id, { title, price, duration_minutes, description, is_act
 }
 
 function deleteService(id) {
-  // Avval ushbu xizmatga tegishli faol bronlar bormi tekshiramiz
-  const activeBookings = db.prepare(`
-    SELECT COUNT(*) as count FROM bookings WHERE service_id = ? AND status = 'confirmed'
-  `).get(id).count;
-
+  if (useMemoryStore) {
+    const hasBookings = memStore.bookings.some(b => b.service_id === id && b.status === 'confirmed');
+    if (hasBookings) {
+      const s = memStore.services.find(x => x.id === id);
+      if (s) s.is_active = 0;
+      return { softDeleted: true, message: 'Xizmat nofaol holatga o‘tkazildi' };
+    }
+    memStore.services = memStore.services.filter(x => x.id !== id);
+    return { deleted: true };
+  }
+  const activeBookings = db.prepare(`SELECT COUNT(*) as count FROM bookings WHERE service_id = ? AND status = 'confirmed'`).get(id).count;
   if (activeBookings > 0) {
-    // To'liq o'chirmasdan, nofaol (is_active = 0) qilib qo'yamiz
     db.prepare('UPDATE services SET is_active = 0 WHERE id = ?').run(id);
     return { softDeleted: true, message: 'Xizmat nofaol holatga o‘tkazildi' };
   }
-
   db.prepare('DELETE FROM services WHERE id = ?').run(id);
   return { deleted: true };
 }
 
 // ===============================================================
-// Ish Jadvali (Work Schedule) Metodlari
+// ISH JADVALI (WORK SCHEDULE)
 // ===============================================================
 function getWorkSchedule() {
+  if (useMemoryStore) {
+    return memStore.schedule.sort((a, b) => a.day_of_week - b.day_of_week);
+  }
   return db.prepare('SELECT * FROM work_schedule ORDER BY day_of_week ASC').all();
 }
 
 function getWorkScheduleForDay(dayOfWeek) {
-  return db.prepare('SELECT * FROM work_schedule WHERE day_of_week = ?').get(dayOfWeek);
+  if (useMemoryStore) {
+    return memStore.schedule.find(s => s.day_of_week === Number(dayOfWeek)) || null;
+  }
+  return db.prepare('SELECT * FROM work_schedule WHERE day_of_week = ?').get(dayOfWeek) || null;
 }
 
 function updateWorkSchedule(dayOfWeek, { is_working_day, work_start, work_end, break_start, break_end }) {
+  if (useMemoryStore) {
+    const s = memStore.schedule.find(x => x.day_of_week === Number(dayOfWeek));
+    if (!s) return null;
+    if (is_working_day !== undefined) s.is_working_day = is_working_day ? 1 : 0;
+    if (work_start) s.work_start = work_start;
+    if (work_end) s.work_end = work_end;
+    if (break_start !== undefined) s.break_start = break_start;
+    if (break_end !== undefined) s.break_end = break_end;
+    return s;
+  }
   db.prepare(`
     UPDATE work_schedule
     SET is_working_day = COALESCE(?, is_working_day),
@@ -208,17 +275,33 @@ function updateWorkSchedule(dayOfWeek, { is_working_day, work_start, work_end, b
 }
 
 // ===============================================================
-// Maxsus Dam Olish Kunlari (Special Off Days)
+// MAXSUS DAM OLISH KUNLARI (SPECIAL OFF DAYS)
 // ===============================================================
 function getSpecialOffDays() {
+  if (useMemoryStore) {
+    return memStore.offDays.sort((a, b) => a.off_date.localeCompare(b.off_date));
+  }
   return db.prepare('SELECT * FROM special_off_days ORDER BY off_date ASC').all();
 }
 
 function getSpecialOffDay(offDate) {
-  return db.prepare('SELECT * FROM special_off_days WHERE off_date = ?').get(offDate);
+  if (useMemoryStore) {
+    return memStore.offDays.find(d => d.off_date === offDate) || null;
+  }
+  return db.prepare('SELECT * FROM special_off_days WHERE off_date = ?').get(offDate) || null;
 }
 
 function addSpecialOffDay(offDate, reason = 'Dam olish kuni') {
+  if (useMemoryStore) {
+    let item = memStore.offDays.find(d => d.off_date === offDate);
+    if (item) {
+      item.reason = reason;
+    } else {
+      item = { id: crypto.randomUUID(), off_date: offDate, reason, created_at: new Date().toISOString() };
+      memStore.offDays.push(item);
+    }
+    return item;
+  }
   const id = crypto.randomUUID();
   db.prepare(`
     INSERT INTO special_off_days (id, off_date, reason)
@@ -229,14 +312,39 @@ function addSpecialOffDay(offDate, reason = 'Dam olish kuni') {
 }
 
 function removeSpecialOffDay(offDate) {
+  if (useMemoryStore) {
+    memStore.offDays = memStore.offDays.filter(d => d.off_date !== offDate);
+    return { success: true };
+  }
   db.prepare('DELETE FROM special_off_days WHERE off_date = ?').run(offDate);
   return { success: true };
 }
 
 // ===============================================================
-// Bronlar (Bookings) Metodlari
+// BRONLAR (BOOKINGS)
 // ===============================================================
 function getBookings({ date, status, fromDate, toDate, limit = 100 } = {}) {
+  if (useMemoryStore) {
+    let list = memStore.bookings.map(b => {
+      const s = memStore.services.find(srv => srv.id === b.service_id);
+      return {
+        ...b,
+        service_title: s ? s.title : '',
+        service_price: s ? s.price : 0,
+        service_duration: s ? s.duration_minutes : 30
+      };
+    });
+
+    if (date) list = list.filter(b => b.booking_date === date);
+    if (status) list = list.filter(b => b.status === status);
+    if (fromDate) list = list.filter(b => b.booking_date >= fromDate);
+    if (toDate) list = list.filter(b => b.booking_date <= toDate);
+
+    return list
+      .sort((a, b) => (a.booking_date + a.start_time).localeCompare(b.booking_date + b.start_time))
+      .slice(0, limit);
+  }
+
   let query = `
     SELECT b.*, s.title as service_title, s.price as service_price, s.duration_minutes as service_duration
     FROM bookings b
@@ -245,22 +353,10 @@ function getBookings({ date, status, fromDate, toDate, limit = 100 } = {}) {
   `;
   const params = [];
 
-  if (date) {
-    query += ' AND b.booking_date = ?';
-    params.push(date);
-  }
-  if (status) {
-    query += ' AND b.status = ?';
-    params.push(status);
-  }
-  if (fromDate) {
-    query += ' AND b.booking_date >= ?';
-    params.push(fromDate);
-  }
-  if (toDate) {
-    query += ' AND b.booking_date <= ?';
-    params.push(toDate);
-  }
+  if (date) { query += ' AND b.booking_date = ?'; params.push(date); }
+  if (status) { query += ' AND b.status = ?'; params.push(status); }
+  if (fromDate) { query += ' AND b.booking_date >= ?'; params.push(fromDate); }
+  if (toDate) { query += ' AND b.booking_date <= ?'; params.push(toDate); }
 
   query += ' ORDER BY b.booking_date ASC, b.start_time ASC LIMIT ?';
   params.push(limit);
@@ -269,19 +365,35 @@ function getBookings({ date, status, fromDate, toDate, limit = 100 } = {}) {
 }
 
 function getBookingById(id) {
+  if (useMemoryStore) {
+    const b = memStore.bookings.find(x => x.id === id);
+    if (!b) return null;
+    const s = memStore.services.find(srv => srv.id === b.service_id);
+    return {
+      ...b,
+      service_title: s ? s.title : '',
+      service_price: s ? s.price : 0,
+      service_duration: s ? s.duration_minutes : 30
+    };
+  }
   return db.prepare(`
     SELECT b.*, s.title as service_title, s.price as service_price, s.duration_minutes as service_duration
     FROM bookings b
     LEFT JOIN services s ON b.service_id = s.id
     WHERE b.id = ?
-  `).get(id);
+  `).get(id) || null;
 }
 
-/**
- * Ustma-ust tushishni tekshirish (Overlap detector)
- * Formula: slot_start < booking_end AND slot_end > booking_start
- */
 function checkBookingOverlap(bookingDate, startTime, endTime, excludeBookingId = null) {
+  if (useMemoryStore) {
+    return memStore.bookings.filter(b => 
+      b.booking_date === bookingDate &&
+      b.status === 'confirmed' &&
+      b.start_time < endTime &&
+      b.end_time > startTime &&
+      (!excludeBookingId || b.id !== excludeBookingId)
+    );
+  }
   let query = `
     SELECT b.*, s.title as service_title
     FROM bookings b
@@ -292,20 +404,39 @@ function checkBookingOverlap(bookingDate, startTime, endTime, excludeBookingId =
       AND b.end_time > ?
   `;
   const params = [bookingDate, endTime, startTime];
-
   if (excludeBookingId) {
     query += ' AND b.id != ?';
     params.push(excludeBookingId);
   }
-
   return db.prepare(query).all(...params);
 }
 
-/**
- * Atomar bron qilish (Transaction bilan himoyalangan)
- */
 function createBooking({ client_name, client_phone, service_id, booking_date, start_time, end_time, notes = '', status = 'confirmed' }) {
-  // Tranzaksiya ichida overlap bor-yo'qligini qat'iy tekshiramiz
+  if (useMemoryStore) {
+    const conflicts = checkBookingOverlap(booking_date, start_time, end_time);
+    if (conflicts.length > 0) {
+      const err = new Error('Ushbu vaqt oralig‘i allaqachon band qilingan!');
+      err.code = 'SLOT_OCCUPIED';
+      err.conflict = conflicts[0];
+      throw err;
+    }
+    const id = crypto.randomUUID();
+    const item = {
+      id,
+      client_name,
+      client_phone,
+      service_id,
+      booking_date,
+      start_time,
+      end_time,
+      status,
+      notes,
+      created_at: new Date().toISOString()
+    };
+    memStore.bookings.push(item);
+    return getBookingById(id);
+  }
+
   const insertTransaction = db.transaction(() => {
     const conflicts = checkBookingOverlap(booking_date, start_time, end_time);
     if (conflicts.length > 0) {
@@ -333,17 +464,47 @@ function updateBookingStatus(id, status) {
   if (!allowed.includes(status)) {
     throw new Error('Noto‘g‘ri holat (status)!');
   }
+  if (useMemoryStore) {
+    const b = memStore.bookings.find(x => x.id === id);
+    if (!b) return null;
+    b.status = status;
+    return getBookingById(id);
+  }
   db.prepare('UPDATE bookings SET status = ? WHERE id = ?').run(status, id);
   return getBookingById(id);
 }
 
 function deleteBooking(id) {
+  if (useMemoryStore) {
+    memStore.bookings = memStore.bookings.filter(x => x.id !== id);
+    return { success: true };
+  }
   db.prepare('DELETE FROM bookings WHERE id = ?').run(id);
   return { success: true };
 }
 
-// Kunlik umumiy statistika (Admin dashboard uchun)
 function getDayStats(dateStr) {
+  if (useMemoryStore) {
+    const dayBookings = memStore.bookings.filter(b => b.booking_date === dateStr);
+    let total = dayBookings.length;
+    let confirmed = 0;
+    let completed = 0;
+    let cancelled = 0;
+    let revenue = 0;
+
+    dayBookings.forEach(b => {
+      if (b.status === 'confirmed') confirmed++;
+      if (b.status === 'completed') completed++;
+      if (b.status === 'cancelled') cancelled++;
+      if (b.status === 'confirmed' || b.status === 'completed') {
+        const s = memStore.services.find(srv => srv.id === b.service_id);
+        if (s) revenue += Number(s.price || 0);
+      }
+    });
+
+    return { date: dateStr, total, confirmed, completed, cancelled, revenue };
+  }
+
   const totalBookings = db.prepare(`
     SELECT COUNT(*) as count,
            SUM(CASE WHEN b.status = 'confirmed' THEN 1 ELSE 0 END) as confirmed_count,

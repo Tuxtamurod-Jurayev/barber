@@ -24,20 +24,29 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// Boshqa barcha so'rovlar uchun mijoz sahifasi (Express 5 mos)
+// Boshqa barcha so'rovlar uchun mijoz sahifasi
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Serverni ishga tushirish
-app.listen(PORT, () => {
-  console.log('==================================================');
-  console.log(`💈 Sartaroshxona Bron Tizimi muvaffaqiyatli ishga tushdi!`);
-  console.log(`🌐 Mijoz WebApp / TMA: http://localhost:${PORT}`);
-  console.log(`🔑 Barber Admin Panel:  http://localhost:${PORT}/admin`);
-  console.log(`⚡ Xavfsizlik PIN kodi: ${process.env.ADMIN_PIN || '7777'}`);
-  console.log('==================================================');
+// Serverless (Vercel) bo'lmagan holatda portni tinglash
+const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
 
-  // Telegram botni ishga tushirish (agar token berilgan bo'lsa)
+if (!isServerless) {
+  app.listen(PORT, () => {
+    console.log('==================================================');
+    console.log(`💈 Sartaroshxona Bron Tizimi muvaffaqiyatli ishga tushdi!`);
+    console.log(`🌐 Mijoz WebApp / TMA: http://localhost:${PORT}`);
+    console.log(`🔑 Barber Admin Panel:  http://localhost:${PORT}/admin`);
+    console.log(`⚡ Xavfsizlik PIN kodi: ${process.env.ADMIN_PIN || '7777'}`);
+    console.log('==================================================');
+
+    initTelegramBot();
+  });
+} else {
+  // Vercel serverless konteynerida
   initTelegramBot();
-});
+}
+
+// Vercel / Serverless funksiya uchun app eksporti (MANDATORY)
+module.exports = app;

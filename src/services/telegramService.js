@@ -14,9 +14,11 @@ function initTelegramBot() {
     return;
   }
 
+  const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
   try {
-    bot = new TelegramBot(token, { polling: true });
-    console.log('[Telegram Bot] Muvaffaqiyatli ishga tushdi va xabarlarni tinglamoqda.');
+    bot = new TelegramBot(token, { polling: !isServerless });
+    console.log(`[Telegram Bot] Muvaffaqiyatli ishga tushdi (Polling: ${!isServerless}).`);
 
     // /start buyrug'i
     bot.onText(/\/start/, (msg) => {
