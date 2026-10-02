@@ -147,6 +147,8 @@ async function initDashboard() {
   setupTabs();
   setupModals();
   setupSearchFilter();
+  setupTelegramSettingsHandlers();
+  setupMobileMenu();
   await loadServicesForDropdown();
   await loadTodayDashboard();
   refreshIcons();
@@ -163,7 +165,8 @@ function setupTabs() {
     schedule: 'Haftalik Ish Jadvali va Tanaffuslar',
     offDays: 'Maxsus Dam Olish Kunlari',
     services: 'Xizmatlar va Narxlar',
-    notifications: 'Telegram Bildirishnomalari'
+    notifications: 'Telegram Bildirishnomalari',
+    telegramSettings: 'Telegram Bot va Xabarnoma Sozlamalari'
   };
 
   tabs.forEach(tab => {
@@ -194,6 +197,9 @@ function setupTabs() {
       } else if (target === 'notifications') {
         document.getElementById('tabNotifications').style.display = 'block';
         loadNotifications();
+      } else if (target === 'telegramSettings') {
+        document.getElementById('tabTelegramSettings').style.display = 'block';
+        loadTelegramSettings();
       }
       refreshIcons();
     });
@@ -837,6 +843,197 @@ function setupModals() {
     } catch (err) {
       showAdminToast(err.message || 'Xatolik', 'error');
     }
+  });
+}
+
+// ===============================================================
+// TELEGRAM SOZLAMALARI VA BOSHQARUV
+// ===============================================================
+async function loadTelegramSettings() {
+  try {
+    const data = await adminFetch('/api/admin/settings');
+    if (data.success && data.settings) {
+      const s = data.settings;
+      document.getElementById('settingAdminChatId').value = s.telegram_admin_chat_id || '';
+      document.getElementById('settingAdminPhone').value = s.telegram_admin_phone || '';
+      document.getElementById('settingBarberName').value = s.barber_name || '';
+      document.getElementById('settingWebAppUrl').value = s.webapp_url || '';
+      document.getElementById('settingBotToken').value = s.telegram_bot_token || '';
+
+      updateTgStatusBadge(s.telegram_admin_chat_id);
+    }
+  } catch (err) {
+    showAdminToast('Sozlamalarni yuklashda xatolik', 'error');
+  }
+}
+
+function updateTgStatusBadge(chatId) {
+  const badge = document.getElementById('tgStatusBadge');
+  const badgeText = document.getElementById('tgStatusBadgeText');
+  const bannerDesc = document.getElementById('tgStatusDesc');
+
+  if (!badge || !badgeText || !bannerDesc) return;
+
+  if (chatId && chatId.toString().trim().length > 0) {
+    badge.className = 'tg-status-badge active';
+    badgeText.textContent = `Faol • ID: ${chatId}`;
+    bannerDesc.innerHTML = `Mijozlar buyurtma berganda barcha ma’lumotlar darhol <b>ID: ${chatId}</b> Telegram akkauntingizga yetib boradi.`;
+  } else {
+    badge.className = 'tg-status-badge warning';
+    badgeText.textContent = 'Chat ID Kiritilmagan';
+    bannerDesc.innerHTML = `Hali Chat ID kiritilmagan. Botga kiring, <code>/id</code> deb yozing va chiqqan raqamni pastga kiriting.`;
+  }
+  refreshIcons();
+}
+
+function setupTelegramSettingsHandlers() {
+  const form = document.getElementById('telegramSettingsForm');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const chatId = document.getElementById('settingAdminChatId').value.trim();
+      const phone = document.getElementById('settingAdminPhone').value.trim();
+      const name = document.getElementById('settingBarberName').value.trim();
+      const webapp = document.getElementById('settingWebAppUrl').value.trim();
+      const token = document.getElementById('settingBotToken').value.trim();
+
+      const btnSave = document.getElementById('btnSaveSettings');
+      btnSave.disabled = true;
+      btnSave.innerHTML = `<i data-lucide="loader-2" class="spin"></i> <span>Saqlanmoqda...</span>`;
+      refreshIcons();
+
+      try {
+        const res = await adminFetch('/api/admin/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telegram_admin_chat_id: chatId,
+            telegram_admin_phone: phone,
+            barber_name: name,
+            barber_phone: phone,
+            webapp_url: webapp,
+            telegram_bot_token: token
+          })
+        });
+
+        if (res.success) {
+          showAdminToast('Sozlamalar muvaffaqiyatli saqlandi!');
+          updateTgStatusBadge(chatId);
+          if (name) {
+            document.getElementById('sidebarBarberName').textContent = name;
+          }
+        } else {
+          showAdminToast(res.error || 'Saqlashda xatolik', 'error');
+        }
+      } catch (err) {
+        showAdminToast(err.message || 'Xatolik', 'error');
+      } finally {
+        btnSave.disabled = false;
+        btnSave.innerHTML = `<i data-lucide="save"></i> <span>Sozlamalarni Saqlash</span>`;
+        refreshIcons();
+      }
+    });
+  }
+
+  // Test xabar yuborish
+  const btnTest = document.getElementById('btnSendTestMessage');
+  if (btnTest) {
+    btnTest.addEventListener('click', async () => {
+      const chatId = document.getElementById('settingAdminChatId').value.trim();
+      if (!chatId) {
+        showAdminToast('Iltimos, avval Telegram Chat ID ni kiriting!', 'error');
+        document.getElementById('settingAdminChatId').focus();
+        return;
+      }
+
+      btnTest.disabled = true;
+      btnTest.innerHTML = `<i data-lucide="loader-2" class="spin"></i> <span>Yuborilmoqda...</span>`;
+      refreshIcons();
+
+      try {
+        const res = await adminFetch('/api/admin/telegram/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId })
+        });
+
+        if (res.success) {
+          showAdminToast('Test xabari Telegramingizga yuborildi! Telegram ilovangizni tekshiring.');
+        } else {
+          showAdminToast(res.error || 'Xabar yuborilmadi. Chat ID yoki Bot Tokenni tekshiring.', 'error');
+        }
+      } catch (err) {
+        showAdminToast(err.message || 'Xabar yuborishda xatolik', 'error');
+      } finally {
+        btnTest.disabled = false;
+        btnTest.innerHTML = `<i data-lucide="send"></i> <span>Telegramga Test Xabar Yuborish</span>`;
+        refreshIcons();
+      }
+    });
+  }
+
+  // Webhook ulash
+  const btnWebhook = document.getElementById('btnSetupWebhook');
+  if (btnWebhook) {
+    btnWebhook.addEventListener('click', async () => {
+      const webapp = document.getElementById('settingWebAppUrl').value.trim();
+      btnWebhook.disabled = true;
+      btnWebhook.innerHTML = `<i data-lucide="loader-2" class="spin"></i> <span>Ulanmoqda...</span>`;
+      refreshIcons();
+
+      try {
+        const res = await adminFetch('/api/admin/telegram/setup-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url: webapp })
+        });
+
+        if (res.success) {
+          showAdminToast('Telegram Webhook Vercelga muvaffaqiyatli bog‘landi!');
+        } else {
+          showAdminToast(res.error || 'Webhook ulanmadi', 'error');
+        }
+      } catch (err) {
+        showAdminToast(err.message || 'Webhook ulanmadi', 'error');
+      } finally {
+        btnWebhook.disabled = false;
+        btnWebhook.innerHTML = `<i data-lucide="webhook"></i> <span>Webhookni Vercelga Bog‘lash</span>`;
+        refreshIcons();
+      }
+    });
+  }
+}
+
+// ===============================================================
+// MOBIL MENYU (HAMBURGER DRAWER)
+// ===============================================================
+function setupMobileMenu() {
+  const btnToggle = document.getElementById('btnMobileToggle');
+  const sidebar = document.querySelector('.admin-sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+
+  if (!btnToggle || !sidebar || !backdrop) return;
+
+  function toggleSidebar() {
+    sidebar.classList.toggle('mobile-open');
+    backdrop.classList.toggle('active');
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove('mobile-open');
+    backdrop.classList.remove('active');
+  }
+
+  btnToggle.addEventListener('click', toggleSidebar);
+  backdrop.addEventListener('click', closeSidebar);
+
+  // Mobil qurilmalarda menyu bandi bosilganda avtomatik yopish
+  document.querySelectorAll('.admin-sidebar .nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 900) {
+        closeSidebar();
+      }
+    });
   });
 }
 

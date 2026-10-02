@@ -76,6 +76,10 @@
           <i data-lucide="bell"></i>
           <span>Telegram Xabarlar</span>
         </div>
+        <div class="nav-item" data-tab="telegramSettings">
+          <i data-lucide="bot"></i>
+          <span>Telegram Sozlamalari</span>
+        </div>
       </nav>
 
       <div class="sidebar-footer">
@@ -89,17 +93,23 @@
         </button>
       </div>
     </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
     <!-- MAIN AREA -->
     <main class="admin-main">
       
       <!-- TOPBAR -->
       <header class="admin-topbar">
-        <div class="topbar-title">
-          <h1 id="pageTitle">Bugungi Navbatlar</h1>
-          <div class="date-pill">
-            <i data-lucide="clock"></i>
-            <span id="currentDateDisplay">2026-10-02</span>
+        <div class="topbar-left-wrap">
+          <button type="button" class="btn-mobile-toggle" id="btnMobileToggle" aria-label="Menyu">
+            <i data-lucide="menu"></i>
+          </button>
+          <div class="topbar-title">
+            <h1 id="pageTitle">Bugungi Navbatlar</h1>
+            <div class="date-pill">
+              <i data-lucide="clock"></i>
+              <span id="currentDateDisplay">2026-10-02</span>
+            </div>
           </div>
         </div>
         <div class="topbar-actions">
@@ -353,6 +363,136 @@
               <!-- JS orqali to'ldiriladi -->
             </div>
           </div>
+        </div>
+
+        <!-- TAB 7: TELEGRAM SOZLAMALARI -->
+        <div class="tab-pane" id="tabTelegramSettings" style="display: none;">
+          
+          <!-- TELEGRAM STATUS BANNER -->
+          <div class="tg-status-banner" id="tgStatusBanner">
+            <div class="tg-status-icon">
+              <i data-lucide="bot"></i>
+            </div>
+            <div class="tg-status-text">
+              <h3 id="tgStatusTitle">Telegram Bot Integratsiyasi</h3>
+              <p id="tgStatusDesc">Mijozlar buyurtma berganda barcha ma’lumotlar darhol shaxsiy Telegramingizga keladi.</p>
+            </div>
+            <div class="tg-status-badge" id="tgStatusBadge">
+              <span class="status-indicator"></span>
+              <span id="tgStatusBadgeText">Tekshirilmoqda</span>
+            </div>
+          </div>
+
+          <!-- 3-STEP GUIDE CARD -->
+          <div class="card-panel tg-guide-card">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-lucide="help-circle" style="color: var(--gold);"></i>
+                <span>Telegram Botga Qanday Ulanadi? (3 ta oson qadam)</span>
+              </div>
+            </div>
+            <div class="tg-steps-grid">
+              <div class="tg-step-box">
+                <div class="step-num">1</div>
+                <div class="step-body">
+                  <h4>Botga Kiring</h4>
+                  <p>Telegramda botingizni oching va <code>/start</code> bosing. WebApp tugmasi bilan buyurtma berish ochiladi.</p>
+                </div>
+              </div>
+              <div class="tg-step-box">
+                <div class="step-num">2</div>
+                <div class="step-body">
+                  <h4>Chat ID ni Oling</h4>
+                  <p>Botga <code>/id</code> deb yozing yoki menyudan <b>"🆔 Mening ID raqamim"</b> tugmasini bosing.</p>
+                </div>
+              </div>
+              <div class="tg-step-box">
+                <div class="step-num">3</div>
+                <div class="step-body">
+                  <h4>ID ni Saqlang va Sinang</h4>
+                  <p>Chiqqan raqamni pastdagi <b>Telegram Chat ID</b> maydoniga kiriting, "Saqlash" va "Test Yuborish" tugmasini bosing!</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FORM SETTINGS -->
+          <div class="card-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-lucide="sliders"></i>
+                <span>Admin & Telegram Parametrlari</span>
+              </div>
+            </div>
+
+            <form id="telegramSettingsForm" class="settings-form">
+              <div class="settings-grid">
+                
+                <div class="form-group">
+                  <label for="settingAdminChatId">
+                    <span>Admin Telegram Chat ID</span>
+                    <span class="required-star">*</span>
+                  </label>
+                  <div class="input-with-action">
+                    <input type="text" id="settingAdminChatId" class="form-input" placeholder="Masalan: 5123456789" required>
+                  </div>
+                  <small class="field-hint">Ushbu ID ga yangi mijozlar va bekor qilingan bronlar haqida tezkor xabarlar boradi.</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="settingAdminPhone">
+                    <span>Admin Telefon Raqami</span>
+                    <span class="required-star">*</span>
+                  </label>
+                  <input type="tel" id="settingAdminPhone" class="form-input" placeholder="+998 90 123 45 67" required>
+                  <small class="field-hint">Sartaroshning mijozlarga ko‘rinadigan aloqa raqami.</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="settingBarberName">
+                    <span>Sartarosh / Salon Nomi</span>
+                  </label>
+                  <input type="text" id="settingBarberName" class="form-input" placeholder="Usta Sardor">
+                  <small class="field-hint">Bosh sahifa va xabarlarda ko‘rsatiladigan ism.</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="settingWebAppUrl">
+                    <span>Web App URL Manzili</span>
+                  </label>
+                  <input type="url" id="settingWebAppUrl" class="form-input" placeholder="https://barber-sepia-six.vercel.app/" value="https://barber-sepia-six.vercel.app/">
+                  <small class="field-hint">Telegram botdagi "Navbatga Yozilish" tugmasi ochadigan link.</small>
+                </div>
+
+                <div class="form-group full-width">
+                  <label for="settingBotToken">
+                    <span>Telegram Bot Token</span>
+                  </label>
+                  <div class="token-input-wrap">
+                    <input type="text" id="settingBotToken" class="form-input font-mono" placeholder="8814995989:AAEYjWrbQlf5qfsAabViVBjNDn_JXWFH-x4" value="8814995989:AAEYjWrbQlf5qfsAabViVBjNDn_JXWFH-x4">
+                  </div>
+                  <small class="field-hint">@BotFather tomonidan berilgan rasmiy bot tokeni.</small>
+                </div>
+
+              </div>
+
+              <div class="settings-actions">
+                <button type="submit" class="btn-primary" id="btnSaveSettings">
+                  <i data-lucide="save"></i>
+                  <span>Sozlamalarni Saqlash</span>
+                </button>
+                <button type="button" class="btn-secondary" id="btnSendTestMessage">
+                  <i data-lucide="send"></i>
+                  <span>Telegramga Test Xabar Yuborish</span>
+                </button>
+                <button type="button" class="btn-outline-gold" id="btnSetupWebhook">
+                  <i data-lucide="webhook"></i>
+                  <span>Webhookni Vercelga Bog‘lash</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
         </div>
 
       </div>

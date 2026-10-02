@@ -32,7 +32,14 @@ const memStore = {
   services: JSON.parse(JSON.stringify(DEFAULT_SERVICES)),
   schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)),
   offDays: [],
-  bookings: []
+  bookings: [],
+  settings: {
+    telegram_bot_token: process.env.TELEGRAM_BOT_TOKEN || '8814995989:AAEYjWrbQlf5qfsAabViVBjNDn_JXWFH-x4',
+    telegram_admin_chat_id: process.env.TELEGRAM_BARBER_CHAT_ID || '',
+    telegram_admin_phone: process.env.BARBER_PHONE || '+998 90 123 45 67',
+    webapp_url: process.env.WEBAPP_URL || 'https://barber-sepia-six.vercel.app/',
+    barber_name: process.env.BARBER_NAME || 'Usta Sardor'
+  }
 };
 
 try {
@@ -107,8 +114,21 @@ function initSqliteTables() {
       FOREIGN KEY (service_id) REFERENCES services(id)
     );
 
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_bookings_date_status ON bookings (booking_date, status);
   `);
+
+  // Default sozlamalarni kiritish
+  const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+  insertSetting.run('telegram_bot_token', process.env.TELEGRAM_BOT_TOKEN || '8814995989:AAEYjWrbQlf5qfsAabViVBjNDn_JXWFH-x4');
+  insertSetting.run('telegram_admin_chat_id', process.env.TELEGRAM_BARBER_CHAT_ID || '');
+  insertSetting.run('telegram_admin_phone', process.env.BARBER_PHONE || '+998 90 123 45 67');
+  insertSetting.run('webapp_url', process.env.WEBAPP_URL || 'https://barber-sepia-six.vercel.app/');
+  insertSetting.run('barber_name', process.env.BARBER_NAME || 'Usta Sardor');
 
   // Boshlang'ich xizmatlar
   const serviceCount = db.prepare('SELECT COUNT(*) as count FROM services').get().count;
@@ -526,6 +546,40 @@ function getDayStats(dateStr) {
   };
 }
 
+// ===============================================================
+// TIZIM VA TELEGRAM SOZLAMALARI (SETTINGS)
+// ===============================================================
+function getSetting(key, defaultValue = '') {
+  if (useMemoryStore) {
+    return memStore.settings[key] !== undefined ? memStore.settings[key] : defaultValue;
+  }
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? row.value : defaultValue;
+}
+
+function setSetting(key, value) {
+  if (useMemoryStore) {
+    memStore.settings[key] = value;
+    return value;
+  }
+  db.prepare(`
+    INSERT INTO settings (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, value);
+  return value;
+}
+
+function getAllSettings() {
+  if (useMemoryStore) {
+    return { ...memStore.settings };
+  }
+  const rows = db.prepare('SELECT key, value FROM settings').all();
+  const obj = {};
+  rows.forEach(r => { obj[r.key] = r.value; });
+  return obj;
+}
+
 module.exports = {
   db,
   getServices,
@@ -546,5 +600,8 @@ module.exports = {
   createBooking,
   updateBookingStatus,
   deleteBooking,
-  getDayStats
+  getDayStats,
+  getSetting,
+  setSetting,
+  getAllSettings
 };
